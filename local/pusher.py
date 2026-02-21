@@ -44,7 +44,10 @@ MAX_DAILY_LOSS_PCT = 3.0
 # API URLs
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 FEAR_GREED_URL = "https://api.alternative.me/fng/"
-CALENDAR_URL = "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+CALENDAR_URLS = [
+    "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+    "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+]
 
 # Refresh intervals (seconds)
 INTERVALS = {
@@ -525,49 +528,66 @@ class NewsFetcher:
 # ============================================================
 class CalendarFetcher:
     def get_events(self):
-        try:
-            r = requests.get(CALENDAR_URL, timeout=10)
-            if r.status_code != 200:
-                return []
-            events = r.json()
-            result = []
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            for ev in events:
-                impact = ev.get("impact", "").lower()
-                if impact not in ["high", "medium"]:
-                    continue
-                raw_date = ev.get("date", "")
-                event_day = raw_date[:10] if raw_date else ""
-                if event_day and event_day < today_str:
-                    continue
-                # Format time for display
-                time_display = raw_date
-                try:
-                    from dateutil.parser import parse as dt_parse
-                    dt = dt_parse(raw_date)
-                    now = datetime.now()
-                    if dt.date() == now.date():
-                        time_display = f"Today {dt.strftime('%H:%M')}"
-                    elif dt.date() == (now + timedelta(days=1)).date():
-                        time_display = f"Tomorrow {dt.strftime('%H:%M')}"
-                    else:
-                        time_display = dt.strftime("%a %H:%M")
-                except Exception:
-                    time_display = raw_date[:16] if len(raw_date) > 16 else raw_date
-                result.append({
-                    "title": ev.get("title", "Unknown"),
-                    "country": ev.get("country", ""),
-                    "date": raw_date,
-                    "time": time_display,
-                    "impact": impact,
-                    "forecast": ev.get("forecast", ""),
-                    "previous": ev.get("previous", ""),
-                    "actual": ev.get("actual", ""),
-                })
-            return sorted(result, key=lambda x: x.get("date", ""))
-        except Exception as e:
-            logger.error(f"Calendar error: {e}")
-        return []
+        all_events = []
+        for url in CALENDAR_URLS:
+            try:
+                r = requests.get(url, timeout=10)
+                if r.status_code == 200:
+                    all_events.extend(r.json())
+            except Exception as e:
+                logger.error(f"Calendar fetch error: {e}")
+
+        result = []
+        now = datetime.now()
+        # Show: past 2 days + next 10 days (covers full current + next week)
+        window_start = (now - timedelta(days=2)).strftime("%Y-%m-%d")
+        window_end = (now + timedelta(days=10)).strftime("%Y-%m-%d")
+
+        for ev in all_events:
+            impact = ev.get("impact", "").lower()
+            if impact not in ["high", "medium", "low"]:
+                continue
+            raw_date = ev.get("date", "")
+            event_day = raw_date[:10] if raw_date else ""
+            if not event_day or event_day < window_start or event_day > window_end:
+                continue
+            # Format time for display
+            time_display = raw_date
+            try:
+                from dateutil.parser import parse as dt_parse
+                dt = dt_parse(raw_date)
+                if dt.date() == now.date():
+                    time_display = f"Today {dt.strftime('%H:%M')}"
+                elif dt.date() == (now + timedelta(days=1)).date():
+                    time_display = f"Tomorrow {dt.strftime('%H:%M')}"
+                elif dt.date() == (now - timedelta(days=1)).date():
+                    time_display = f"Yesterday {dt.strftime('%H:%M')}"
+                else:
+                    time_display = dt.strftime("%a %d %H:%M")
+            except Exception:
+                time_display = raw_date[:16] if len(raw_date) > 16 else raw_date
+            # Determine if past
+            is_past = event_day < now.strftime("%Y-%m-%d")
+            result.append({
+                "title": ev.get("title", "Unknown"),
+                "country": ev.get("country", ""),
+                "date": raw_date,
+                "time": time_display,
+                "impact": impact,
+                "forecast": ev.get("forecast", ""),
+                "previous": ev.get("previous", ""),
+                "actual": ev.get("actual", ""),
+                "is_past": is_past,
+            })
+        # Remove duplicates by title+date
+        seen = set()
+        unique = []
+        for e in result:
+            key = f"{e['title']}_{e['date']}"
+            if key not in seen:
+                seen.add(key)
+                unique.append(e)
+        return sorted(unique, key=lambda x: x.get("date", ""))
 
 
 # ============================================================
@@ -706,8 +726,10 @@ def main():
                         push("mt5_account", account)
                         logger.debug(f"[MT5] Balance: ${pnl.get('balance',0):,.2f} | Daily: ${pnl.get('daily_pnl',0):,.2f}")
                     else:
-                        # Try to reconnect
-                        mt5f.connect()
+                        # Try to reconnect — do NOT push empty/zero data
+                        # The last good data stays cached in Supabase
+                        if MT5_AVAILABLE:
+                            mt5f.connect()
                 except Exception as e:
                     logger.error(f"MT5 refresh error: {e}")
                 last["mt5"] = now
@@ -745,15 +767,16 @@ def main():
             # --- INDICATORS (every 180s) ---
             if now - last["indicators"] >= INTERVALS["indicators"]:
                 try:
-                    indicators = {}
                     if mt5f.connected:
+                        indicators = {}
                         for symbol in MT5_SYMBOLS:
                             ind = mt5f.get_indicators(symbol)
                             if ind:
                                 indicators[symbol] = ind
-                    if indicators:
-                        push("indicators", indicators)
-                        logger.info(f"[INDICATORS] {len(indicators)} symbols")
+                        if indicators:
+                            push("indicators", indicators)
+                            logger.info(f"[INDICATORS] {len(indicators)} symbols")
+                    # else: keep cached indicators in Supabase
                 except Exception as e:
                     logger.error(f"Indicators refresh error: {e}")
                 last["indicators"] = now

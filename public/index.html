@@ -221,6 +221,41 @@ canvas#bgParticles{width:100%;height:100%}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 
 .footer{text-align:center;padding:16px;font-family:var(--mono);font-size:8px;color:var(--txt3);letter-spacing:2px}
+/* ─── FAB REFRESH BUTTON ─── */
+.fab{display:none;position:fixed;bottom:24px;right:24px;z-index:150;width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,var(--cyan),#40ffb0);border:none;cursor:pointer;
+  box-shadow:0 4px 20px rgba(0,229,255,.35),0 0 40px rgba(0,229,255,.12);
+  color:var(--bg);font-size:20px;transition:all .3s var(--ease);-webkit-tap-highlight-color:transparent}
+.fab:active{transform:scale(.9)}
+.fab.spin i{animation:fabSpin .6s var(--ease)}
+@keyframes fabSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+
+/* ─── PULL TO REFRESH ─── */
+.ptr{position:fixed;top:0;left:0;right:0;height:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,rgba(0,229,255,.08),transparent);overflow:hidden;transition:height .2s var(--ease)}
+.ptr-icon{width:28px;height:28px;border-radius:50%;border:2px solid var(--cyan);border-top-color:transparent;
+  transition:transform .3s var(--ease)}
+.ptr.loading .ptr-icon{animation:ptrSpin .8s linear infinite}
+@keyframes ptrSpin{to{transform:rotate(360deg)}}
+
+/* ─── LAST UPDATED PILL ─── */
+.last-upd{font-family:var(--mono);font-size:8px;color:var(--txt3);padding:3px 8px;
+  border:1px solid var(--border);border-radius:10px;white-space:nowrap;transition:color .3s}
+.last-upd.stale{color:var(--gold);border-color:rgba(255,196,0,.2)}
+.last-upd.expired{color:var(--red);border-color:rgba(255,23,68,.2)}
+
+/* ─── CALENDAR DAY HEADERS ─── */
+.cal-day-hdr{display:flex;align-items:center;gap:8px;padding:6px 8px;margin-top:6px}
+.cal-day-hdr:first-child{margin-top:0}
+.cal-day-label{font-family:var(--display);font-size:9px;letter-spacing:2px;text-transform:uppercase;
+  color:var(--cyan);font-weight:700;white-space:nowrap}
+.cal-day-label.today{color:var(--green)}
+.cal-day-label.past{color:var(--txt3)}
+.cal-day-line{flex:1;height:1px;background:var(--border)}
+.cal-item.past{opacity:.4}
+.cal-item.today-ev{border-left:2px solid var(--green);padding-left:6px}
+
+/* ─── MOBILE RESPONSIVE ─── */
 @media(max-width:1000px){
   .pnl-board{grid-template-columns:1fr}
   .pnl-center{border-left:0;border-right:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
@@ -229,12 +264,76 @@ canvas#bgParticles{width:100%;height:100%}
   .span2{grid-column:span 1}
   .mkt-strip{grid-template-columns:repeat(2,1fr)}
 }
+@media(max-width:768px){
+  body{-webkit-overflow-scrolling:touch}
+  .fab{display:flex;align-items:center;justify-content:center}
+  /* Compact topbar */
+  .topbar{padding:8px 12px;gap:6px;flex-wrap:wrap}
+  .brand-name{font-size:12px;letter-spacing:3px}
+  .brand-tag{font-size:7px}
+  .brand-diamond{width:24px;height:24px}
+  .clock{display:none}
+  .top-right{gap:6px}
+  .top-pills{gap:4px}
+  .acct-btn{padding:3px 7px;font-size:9px}
+  .pill{padding:3px 8px;font-size:9px}
+  /* P&L board */
+  .pnl-board{margin:8px 10px}
+  .pnl-hero{font-size:32px}
+  .pnl-hero .curr{font-size:18px}
+  .pnl-hero .dec{font-size:22px}
+  .pnl-side{padding:12px 14px}
+  .pnl-center{padding:14px}
+  .pnl-mini{gap:10px;flex-wrap:wrap;justify-content:center}
+  /* Tickers */
+  .ticker{gap:8px;margin:0 10px 8px}
+  .ticker-card{padding:12px 14px}
+  .tc-price{font-size:22px}
+  .tc-icon{width:28px;height:28px;font-size:13px}
+  .tc-stats{gap:10px;flex-wrap:wrap}
+  /* Market strip */
+  .mkt-strip{grid-template-columns:repeat(2,1fr);gap:6px;margin:0 10px 8px}
+  .mkt-box{padding:8px 10px}
+  .mkt-val{font-size:11px}
+  /* Cards */
+  .main{gap:8px;margin:0 10px 8px}
+  .card{border-radius:8px}
+  .c-head{padding:8px 12px}
+  .c-body{padding:10px 12px}
+  .c-title{font-size:8px}
+  /* Tables horizontal scroll */
+  .pos-table,.hist-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pos-table th,.pos-table td,.hist-table th,.hist-table td{white-space:nowrap;padding:4px 5px;font-size:8px}
+  /* News items bigger touch */
+  .n-item{padding:10px 12px}
+  .n-item .n-title{font-size:12px}
+  /* Whale items */
+  .w-item{padding:10px 12px}
+  .w-item .w-msg{font-size:11px}
+  /* Calendar */
+  .cal-item{padding:8px 10px}
+  /* Footer */
+  .footer{padding:12px;padding-bottom:80px;font-size:7px}
+  /* Tabs bigger touch */
+  .tab{padding:7px}
+  .n-tab{padding:5px 10px;font-size:9px}
+  .h-tab{padding:5px 10px;font-size:9px}
+  /* Toast mobile */
+  .toasts{left:10px;right:10px;top:auto;bottom:80px}
+  .toast{min-width:auto}
+  /* History tabs scroll */
+  .hist-tabs{overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap;padding-bottom:2px}
+  .c-head{flex-wrap:wrap;gap:6px}
+}
 </style>
 </head>
 <body>
 
 <div class="bg-gradient"></div>
 <canvas id="bgParticles" class="bg-canvas"></canvas>
+
+<!-- Pull to Refresh indicator -->
+<div class="ptr" id="ptr"><div class="ptr-icon"></div></div>
 
 <div class="app">
 
@@ -257,10 +356,14 @@ canvas#bgParticles{width:100%;height:100%}
     </div>
   </div>
   <div class="top-right">
+    <div class="last-upd" id="lastUpd">Updated just now</div>
     <div class="clock" id="clock"></div>
     <button class="btn-icon" onclick="doRefresh()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
   </div>
 </div>
+
+<!-- Mobile FAB Refresh -->
+<button class="fab" id="fab" onclick="fabRefresh()" aria-label="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
 
 <div class="pnl-board">
   <div class="pnl-side">
@@ -510,7 +613,7 @@ async function initSupabase(){
           fear_greed: updFG, market_overview: updOv,
           mt5_account: updAcct,
         };
-        if(handlers[key]) safe(()=>handlers[key](value),'rt-'+key);
+        if(handlers[key]){safe(()=>handlers[key](value),'rt-'+key);markUpdated();}
       })
     .subscribe(status => {
       if(status === 'SUBSCRIBED'){
@@ -536,6 +639,7 @@ async function loadData(){
     data.forEach(row => { d[row.key] = row.value; });
     applyAll(d);
     setStatus('live');
+    markUpdated();
   }catch(e){
     console.error('loadData error:',e);
     setStatus('offline');
@@ -660,10 +764,19 @@ function renderNews(){const list=$('newsFeed');
 /* ─── CALENDAR ─── */
 function updCal(c){if(!c||!Array.isArray(c))return;$('cCnt').textContent=c.length;const list=$('calFeed');
   if(!c.length){list.innerHTML='<div style="text-align:center;color:var(--txt3);padding:30px;font-size:11px">No events</div>';return}
-  list.innerHTML=c.slice(0,25).map(e=>{
+  // Group by day label
+  let html='';let lastDay='';
+  c.slice(0,40).forEach(e=>{
+    const day=e.day_label||e.date||'';
+    if(day&&day!==lastDay){lastDay=day;
+      const isPast=e.is_past===true;const isToday=day.toLowerCase().includes('today')||day.toLowerCase().includes('hoy');
+      const cls=isToday?'today':isPast?'past':'';
+      html+=`<div class="cal-day-hdr"><div class="cal-day-label ${cls}">${day}</div><div class="cal-day-line"></div></div>`}
     const imp=(e.impact||'').toLowerCase();const dc=imp.includes('high')?'hi':imp.includes('med')?'md':'lo';
     const dots='<div class="cal-imp">'+Array(imp.includes('high')?3:imp.includes('med')?2:1).fill(`<div class="cal-dot ${dc}"></div>`).join('')+'</div>';
-    return `<div class="cal-item"><div class="cal-time">${e.time||e.date||'--'}</div><div class="cal-ev">${e.title||'--'}<small>${e.country||''}</small></div>${dots}</div>`}).join('')}
+    const evCls=(e.is_past?'past ':'')+(((e.day_label||'').toLowerCase().includes('today'))?'today-ev':'');
+    html+=`<div class="cal-item ${evCls}"><div class="cal-time">${e.time||'All Day'}</div><div class="cal-ev">${e.title||'--'}<small>${e.country||''}</small></div>${dots}</div>`});
+  list.innerHTML=html}
 
 /* ─── WHALE ─── */
 function updWh(w){if(!w)return;$('wCnt').textContent=w.length||0;const list=$('whaleList');
@@ -701,7 +814,42 @@ function toast(type,title,msg){const c=$('toasts');const t=document.createElemen
   t.className='toast '+(type==='success'?'ok':type==='danger'?'err':'inf');
   t.innerHTML=`<div class="toast-t">${title||''}</div><div class="toast-m">${msg||''}</div>`;
   c.appendChild(t);setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300)},5000)}
-function doRefresh(){loadData();toast('info','Refresh','Fetching latest data...')}
+
+/* ─── LAST UPDATED TRACKER ─── */
+let lastUpdTime=Date.now();
+function markUpdated(){lastUpdTime=Date.now();updLastPill()}
+function updLastPill(){const el=$('lastUpd');if(!el)return;
+  const sec=Math.floor((Date.now()-lastUpdTime)/1000);
+  const pill=el;
+  if(sec<10){pill.textContent='Updated just now';pill.className='last-upd'}
+  else if(sec<60){pill.textContent='Updated '+sec+'s ago';pill.className='last-upd'}
+  else if(sec<300){const m=Math.floor(sec/60);pill.textContent='Updated '+m+'m ago';pill.className='last-upd'}
+  else if(sec<900){const m=Math.floor(sec/60);pill.textContent=m+'m ago';pill.className='last-upd stale'}
+  else{const m=Math.floor(sec/60);pill.textContent=m+'m ago — stale';pill.className='last-upd expired'}}
+setInterval(updLastPill,5000);
+
+function doRefresh(){loadData().then(()=>markUpdated());toast('info','Refresh','Fetching latest data...')}
+
+/* ─── FAB REFRESH ─── */
+function fabRefresh(){const fab=$('fab');fab.classList.add('spin');loadData().then(()=>{markUpdated();setTimeout(()=>fab.classList.remove('spin'),600)});
+  toast('info','Refresh','Syncing data...')}
+
+/* ─── PULL TO REFRESH (mobile) ─── */
+(function(){
+  let startY=0,pulling=false;
+  const ptr=$('ptr');
+  document.addEventListener('touchstart',e=>{if(window.scrollY===0&&e.touches.length===1){startY=e.touches[0].clientY;pulling=true}},{passive:true});
+  document.addEventListener('touchmove',e=>{if(!pulling)return;
+    const dy=e.touches[0].clientY-startY;
+    if(dy>0&&dy<120&&window.scrollY===0){ptr.style.height=Math.min(dy*.6,60)+'px'}
+  },{passive:true});
+  document.addEventListener('touchend',()=>{
+    if(!pulling)return;pulling=false;
+    const h=parseInt(ptr.style.height)||0;
+    if(h>40){ptr.classList.add('loading');ptr.style.height='50px';
+      loadData().then(()=>{markUpdated();ptr.classList.remove('loading');ptr.style.height='0';toast('info','Refreshed','Data synced successfully')})}
+    else{ptr.style.height='0'}},{passive:true});
+})();
 </script>
 </body>
 </html>
