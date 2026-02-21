@@ -43,11 +43,15 @@ canvas#bgParticles{width:100%;height:100%}
   background:var(--glass2);border-bottom:1px solid var(--border);backdrop-filter:blur(30px);
   position:sticky;top:0;z-index:100}
 .brand{display:flex;align-items:center;gap:10px}
-.brand-diamond{width:28px;height:28px;position:relative;display:flex;align-items:center;justify-content:center}
-.brand-diamond svg{width:100%;height:100%;filter:drop-shadow(0 0 6px rgba(0,229,255,.5))}
-.brand-name{font-family:var(--display);font-size:14px;font-weight:800;letter-spacing:4px;
-  background:linear-gradient(135deg,var(--cyan),#40ffb0);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.brand-tag{font-family:var(--mono);font-size:8px;letter-spacing:2px;color:var(--txt3);text-transform:uppercase}
+.brand-logo{width:34px;height:34px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.brand-logo svg{width:100%;height:100%;filter:drop-shadow(0 0 8px rgba(0,229,255,.4))}
+.brand-logo::after{content:'';position:absolute;inset:-2px;border-radius:50%;background:conic-gradient(from 0deg,rgba(0,229,255,.15),rgba(10,250,110,.1),rgba(124,77,255,.08),rgba(0,229,255,.15));animation:logoSpin 8s linear infinite;z-index:-1;filter:blur(3px)}
+@keyframes logoSpin{to{transform:rotate(360deg)}}
+.brand-name{font-family:var(--display);font-size:15px;font-weight:900;letter-spacing:5px;
+  background:linear-gradient(135deg,var(--cyan) 0%,#40ffb0 50%,var(--cyan) 100%);background-size:200% auto;
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:brandShimmer 4s linear infinite}
+@keyframes brandShimmer{to{background-position:200% center}}
+.brand-tag{font-family:var(--mono);font-size:7px;letter-spacing:2.5px;color:var(--txt3);text-transform:uppercase}
 .top-pills{display:flex;align-items:center;gap:8px}
 .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 12px;border-radius:20px;
   font-family:var(--mono);font-size:10px;border:1px solid var(--border);background:transparent;transition:.3s var(--ease)}
@@ -244,6 +248,10 @@ canvas#bgParticles{width:100%;height:100%}
 .last-upd.stale{color:var(--gold);border-color:rgba(255,196,0,.2)}
 .last-upd.expired{color:var(--red);border-color:rgba(255,23,68,.2)}
 
+/* ─── MOBILE ACCOUNT (hidden on desktop) ─── */
+.mob-acct{display:none;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--txt2)}
+.mob-acct-name{opacity:.7}
+
 /* ─── CALENDAR DAY HEADERS ─── */
 .cal-day-hdr{display:flex;align-items:center;gap:8px;padding:6px 8px;margin-top:6px}
 .cal-day-hdr:first-child{margin-top:0}
@@ -267,16 +275,21 @@ canvas#bgParticles{width:100%;height:100%}
 @media(max-width:768px){
   body{-webkit-overflow-scrolling:touch}
   .fab{display:flex;align-items:center;justify-content:center}
-  /* Compact topbar */
-  .topbar{padding:8px 12px;gap:6px;flex-wrap:wrap}
-  .brand-name{font-size:12px;letter-spacing:3px}
-  .brand-tag{font-size:7px}
-  .brand-diamond{width:24px;height:24px}
+  /* Compact topbar — 2-row layout */
+  .topbar{padding:6px 10px;gap:4px;flex-wrap:wrap;justify-content:flex-start}
+  .brand{flex:0 0 auto;gap:8px}
+  .brand-logo{width:28px;height:28px}
+  .brand-logo::after{display:none}
+  .brand-name{font-size:13px;letter-spacing:3px}
+  .brand-tag{display:none}
   .clock{display:none}
-  .top-right{gap:6px}
-  .top-pills{gap:4px}
-  .acct-btn{padding:3px 7px;font-size:9px}
-  .pill{padding:3px 8px;font-size:9px}
+  .top-pills{flex:1;justify-content:flex-end;gap:4px}
+  .top-pills .acct-btn{display:none}
+  .pill{padding:3px 8px;font-size:8px}
+  .top-right{flex:1 0 100%;display:flex;justify-content:space-between;padding-top:4px;border-top:1px solid var(--border);margin-top:2px}
+  .last-upd{font-size:8px;flex:1}
+  .top-right .btn-icon{display:none}
+  .mob-acct{display:flex}
   /* P&L board */
   .pnl-board{margin:8px 10px}
   .pnl-hero{font-size:32px}
@@ -313,7 +326,9 @@ canvas#bgParticles{width:100%;height:100%}
   /* Calendar */
   .cal-item{padding:8px 10px}
   /* Footer */
-  .footer{padding:12px;padding-bottom:80px;font-size:7px}
+  .footer{padding:12px;padding-bottom:90px;font-size:7px}
+  /* Hist summary scroll */
+  .hist-summary{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;justify-content:flex-start;gap:10px;white-space:nowrap}
   /* Tabs bigger touch */
   .tab{padding:7px}
   .n-tab{padding:5px 10px;font-size:9px}
@@ -339,10 +354,29 @@ canvas#bgParticles{width:100%;height:100%}
 
 <div class="topbar">
   <div class="brand">
-    <div class="brand-diamond">
-      <svg viewBox="0 0 28 28" fill="none"><path d="M14 2L24 10L20 24H8L4 10Z" stroke="url(#g1)" stroke-width="1.2" fill="none"/>
-      <path d="M14 7L19 12L14 17L9 12Z" fill="url(#g1)" opacity=".7"/>
-      <defs><linearGradient id="g1" x1="4" y1="2" x2="24" y2="24"><stop stop-color="#00e5ff"/><stop offset="1" stop-color="#0afa6e"/></linearGradient></defs></svg>
+    <div class="brand-logo">
+      <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1" x1="0" y1="0" x2="40" y2="40"><stop stop-color="#00e5ff"/><stop offset=".5" stop-color="#40ffb0"/><stop offset="1" stop-color="#7c4dff"/></linearGradient>
+          <linearGradient id="lg2" x1="10" y1="8" x2="30" y2="32"><stop stop-color="#00e5ff"/><stop offset="1" stop-color="#0afa6e"/></linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="1" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        <!-- Hexagonal frame -->
+        <path d="M20 2L36.5 11.5V30.5L20 38L3.5 30.5V11.5Z" stroke="url(#lg1)" stroke-width="1" fill="none" opacity=".5"/>
+        <path d="M20 5L33.5 13V29L20 35L6.5 29V13Z" stroke="url(#lg1)" stroke-width=".5" fill="none" opacity=".25"/>
+        <!-- N letterform -->
+        <path d="M13 28V12L20 22L27 12V28" stroke="url(#lg2)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none" filter="url(#glow)"/>
+        <!-- Neural dots -->
+        <circle cx="13" cy="12" r="1.8" fill="#00e5ff" opacity=".9"/>
+        <circle cx="27" cy="12" r="1.8" fill="#0afa6e" opacity=".9"/>
+        <circle cx="13" cy="28" r="1.5" fill="#00e5ff" opacity=".6"/>
+        <circle cx="27" cy="28" r="1.5" fill="#0afa6e" opacity=".6"/>
+        <circle cx="20" cy="22" r="1.3" fill="#7c4dff" opacity=".7"/>
+        <!-- Circuit traces -->
+        <line x1="5" y1="20" x2="10" y2="20" stroke="#00e5ff" stroke-width=".4" opacity=".3"/>
+        <line x1="30" y1="20" x2="35" y2="20" stroke="#0afa6e" stroke-width=".4" opacity=".3"/>
+        <line x1="20" y1="3" x2="20" y2="8" stroke="#7c4dff" stroke-width=".4" opacity=".3"/>
+      </svg>
     </div>
     <div><div class="brand-name">NEXUS</div><div class="brand-tag">AI Trading Terminal</div></div>
   </div>
@@ -357,6 +391,7 @@ canvas#bgParticles{width:100%;height:100%}
   </div>
   <div class="top-right">
     <div class="last-upd" id="lastUpd">Updated just now</div>
+    <div class="mob-acct"><span class="acct-tag demo" id="acctTag2">DEMO</span> <span id="acctName2" class="mob-acct-name">--</span></div>
     <div class="clock" id="clock"></div>
     <button class="btn-icon" onclick="doRefresh()" title="Refresh"><i class="bi bi-arrow-clockwise"></i></button>
   </div>
@@ -802,8 +837,9 @@ function updOv(o){if(!o)return;
 
 /* ─── ACCOUNT ─── */
 function updAcct(a){if(!a)return;
-  if(a.name||a.account_name)$('acctName').textContent=a.name||a.account_name;
-  if(a.type){const t=$('acctTag');t.textContent=a.type.toUpperCase();t.className='acct-tag '+(a.type||'demo')}
+  if(a.name||a.account_name){const n=a.name||a.account_name;$('acctName').textContent=n;const m=$('acctName2');if(m)m.textContent=n}
+  if(a.type){const t=$('acctTag');t.textContent=a.type.toUpperCase();t.className='acct-tag '+(a.type||'demo');
+    const t2=$('acctTag2');if(t2){t2.textContent=a.type.toUpperCase();t2.className='acct-tag '+(a.type||'demo')}}
   if(a.login)$('sAcct').textContent='#'+a.login;
   if(a.connected===true)setStatus('live');
   if(a.connected===false)setStatus('offline');
