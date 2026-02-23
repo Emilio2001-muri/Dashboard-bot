@@ -81,6 +81,15 @@ WHALE_ALERTS_FILE = os.path.join(
     "VS code", "Opus4.6", "Python", "whale_alerts.json"
 )
 
+# MT4 bridge file path (NexusBridge.mq4 writes data here)
+MT4_BRIDGE_FILE = os.path.join(
+    os.environ.get("APPDATA", ""),
+    "MetaQuotes", "Terminal",
+    "98A82F92176B73A2100FCD1F8ABD7255",
+    "MQL4", "Files", "nexus_bridge.json"
+)
+MT4_ENABLED = True  # Set False to disable MT4 data
+
 # ============================================================
 # LOGGING
 # ============================================================
@@ -128,22 +137,54 @@ except ImportError:
 class MT5Fetcher:
     def __init__(self):
         self.connected = False
+        self._last_health = 0
+        self._reconnect_interval = 300  # Force reconnect every 5 min
 
     def connect(self):
         if not MT5_AVAILABLE:
             return False
         try:
+            # Always shutdown first to clear stale connections
+            try:
+                mt5.shutdown()
+            except Exception:
+                pass
+            time.sleep(0.3)
             if not mt5.initialize():
-                logger.error(f"MT5 initialize failed: {mt5.last_error()}")
+                err = mt5.last_error()
+                logger.error(f"MT5 initialize failed: {err}")
+                self.connected = False
                 return False
             info = mt5.account_info()
             if info:
                 self.connected = True
+                self._last_health = time.time()
                 logger.info(f"MT5 connected: #{info.login} ({info.name}) Balance: ${info.balance}")
                 return True
+            else:
+                logger.error("MT5 account_info returned None after initialize")
+                self.connected = False
         except Exception as e:
             logger.error(f"MT5 connect error: {e}")
+            self.connected = False
         return False
+
+    def health_check(self):
+        """Verify MT5 connection is alive, reconnect if stale"""
+        if not self.connected or not MT5_AVAILABLE:
+            return False
+        try:
+            info = mt5.account_info()
+            if info is None:
+                logger.warning("MT5 health check FAILED — connection stale, reconnecting...")
+                self.connected = False
+                return self.connect()
+            self._last_health = time.time()
+            return True
+        except Exception as e:
+            logger.warning(f"MT5 health check error: {e} — reconnecting...")
+            self.connected = False
+            return self.connect()
 
     def get_account_info(self):
         if not self.connected:
@@ -174,7 +215,14 @@ class MT5Fetcher:
             return []
         try:
             positions = mt5.positions_get()
-            if not positions:
+            if positions is None:
+                # Check if connection died
+                err = mt5.last_error()
+                if err and err[0] != 0:
+                    logger.warning(f"positions_get error: {err} — connection may be stale")
+                    self.connected = False
+                return []
+            if len(positions) == 0:
                 return []
             return [{
                 "ticket": p.ticket,
@@ -189,9 +237,11 @@ class MT5Fetcher:
                 "swap": p.swap,
                 "magic": p.magic,
                 "time": datetime.fromtimestamp(p.time_setup).isoformat(),
+                "platform": "MT5",
             } for p in positions]
         except Exception as e:
             logger.error(f"Positions error: {e}")
+            self.connected = False
         return []
 
     def get_trade_history(self, days=30):
@@ -669,6 +719,59 @@ class WhaleReader:
 
 
 # ============================================================
+# MT4 BRIDGE READER
+# ============================================================
+class MT4Reader:
+    """Reads MT4 data exported by NexusBridge.mq4 EA"""
+
+    def __init__(self, filepath):
+        self.filepath = filepath
+        self._last_data = None
+        self._last_mtime = 0
+
+    def read(self):
+        try:
+            if not os.path.exists(self.filepath):
+                return None
+            mtime = os.path.getmtime(self.filepath)
+            if mtime == self._last_mtime and self._last_data:
+                return self._last_data
+            with open(self.filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self._last_mtime = mtime
+            self._last_data = data
+            return data
+        except json.JSONDecodeError as e:
+            logger.debug(f"MT4 bridge JSON decode error (file being written?): {e}")
+            return self._last_data
+        except Exception as e:
+            logger.error(f"MT4 bridge read error: {e}")
+            return self._last_data
+
+    def get_account_info(self):
+        data = self.read()
+        if not data:
+            return None
+        return data.get("account", None)
+
+    def get_open_positions(self):
+        data = self.read()
+        if not data:
+            return []
+        return data.get("positions", [])
+
+    def get_trade_history(self):
+        data = self.read()
+        if not data:
+            return []
+        return data.get("history", [])
+
+    @property
+    def available(self):
+        return os.path.exists(self.filepath)
+
+
+# ============================================================
 # MAIN LOOP
 # ============================================================
 def main():
@@ -683,13 +786,22 @@ def main():
     news = NewsFetcher()
     calendar = CalendarFetcher()
     whale = WhaleReader()
+    mt4r = MT4Reader(MT4_BRIDGE_FILE) if MT4_ENABLED else None
 
     # Connect MT5
     if MT5_AVAILABLE:
         mt5f.connect()
 
+    # MT4 bridge status
+    if mt4r:
+        if mt4r.available:
+            logger.info(f"MT4 bridge file found: {MT4_BRIDGE_FILE}")
+        else:
+            logger.info(f"MT4 bridge file not found yet (waiting for NexusBridge EA): {MT4_BRIDGE_FILE}")
+
     # Track last refresh times
     last = {k: 0 for k in INTERVALS}
+    last["mt4"] = 0
 
     logger.info("Entering main loop... Press Ctrl+C to stop.")
     logger.info("")
@@ -716,6 +828,15 @@ def main():
             if now - last["mt5"] >= INTERVALS["mt5"]:
                 try:
                     if mt5f.connected:
+                        # Periodic force reconnect to prevent stale connections
+                        if now - mt5f._last_health >= mt5f._reconnect_interval:
+                            logger.info("MT5 periodic reconnect (keep-alive)...")
+                            mt5f.connect()
+                        else:
+                            # Quick health check
+                            mt5f.health_check()
+
+                    if mt5f.connected:
                         pnl = mt5f.get_pnl_summary()
                         push("mt5_pnl", pnl)
                         positions = mt5f.get_open_positions()
@@ -724,15 +845,33 @@ def main():
                         push("mt5_history", history)
                         account = mt5f.get_account_info()
                         push("mt5_account", account)
-                        logger.debug(f"[MT5] Balance: ${pnl.get('balance',0):,.2f} | Daily: ${pnl.get('daily_pnl',0):,.2f}")
+                        logger.debug(f"[MT5] Balance: ${pnl.get('balance',0):,.2f} | Positions: {len(positions)} | Daily: ${pnl.get('daily_pnl',0):,.2f}")
                     else:
                         # Try to reconnect — do NOT push empty/zero data
                         # The last good data stays cached in Supabase
                         if MT5_AVAILABLE:
+                            logger.info("MT5 disconnected, attempting reconnect...")
                             mt5f.connect()
                 except Exception as e:
                     logger.error(f"MT5 refresh error: {e}")
+                    mt5f.connected = False
                 last["mt5"] = now
+
+            # --- MT4 (every 10s) ---
+            if mt4r and now - last["mt4"] >= INTERVALS["mt5"]:
+                try:
+                    if mt4r.available:
+                        mt4_positions = mt4r.get_open_positions()
+                        push("mt4_trades", mt4_positions)
+                        mt4_account = mt4r.get_account_info()
+                        if mt4_account:
+                            push("mt4_account", mt4_account)
+                        mt4_history = mt4r.get_trade_history()
+                        push("mt4_history", mt4_history)
+                        logger.debug(f"[MT4] Positions: {len(mt4_positions)} | History: {len(mt4_history)}")
+                except Exception as e:
+                    logger.error(f"MT4 refresh error: {e}")
+                last["mt4"] = now
 
             # --- NEWS (every 300s) ---
             if now - last["news"] >= INTERVALS["news"]:

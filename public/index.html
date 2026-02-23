@@ -402,6 +402,7 @@ canvas#bgParticles{width:100%;height:100%}
   <div class="top-pills">
     <div class="pill" id="statusPill"><div class="dot"></div><span id="statusTxt">Connecting...</span></div>
     <button class="acct-btn" id="acctBtn"><span class="acct-tag demo" id="acctTag">DEMO</span><span id="acctName">Loading...</span></button>
+    <span class="pill" id="mt4Info" style="display:none;border-color:rgba(255,196,0,.3);color:var(--gold);font-size:9px"></span>
   </div>
   <div class="top-right">
     <div class="last-upd" id="lastUpd">Updated just now</div>
@@ -581,7 +582,7 @@ canvas#bgParticles{width:100%;height:100%}
 <!-- POSITIONS -->
 <div class="main two">
   <div class="card span2">
-    <div class="c-head"><div class="c-title"><i class="bi bi-activity"></i> Open Positions</div><div class="c-badge" id="pCnt">0</div></div>
+    <div class="c-head"><div class="c-title"><i class="bi bi-activity"></i> Open Positions <span style="font-size:8px;color:var(--txt3);font-weight:400">MT5 + MT4</span></div><div class="c-badge" id="pCnt">0</div></div>
     <div class="c-body"><div id="posBody" style="max-height:200px;overflow-y:auto"><div style="text-align:center;color:var(--txt3);padding:20px;font-size:11px"><i class="bi bi-inbox"></i> No open positions</div></div></div>
   </div>
 </div>
@@ -626,6 +627,7 @@ const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 let chart,chartWL,chartDaily,curSym='GOLD#',nFilter='all',allNews=[],allHist=[],hFilter='all',rtConnected=false;
 let cachedPnl={},cachedIndicators={},cachedFG={},cachedPrices={};
+let cachedMT5Trades=[],cachedMT4Trades=[],cachedMT5Hist=[],cachedMT4Hist=[],cachedMT4Acct=null;
 
 /* ─── THEME ─── */
 function toggleTheme(){
@@ -722,7 +724,8 @@ async function initSupabase(){
       payload=>{
         if(!payload.new)return;
         const key=payload.new.key,value=payload.new.value;
-        const handlers={prices:updPx,mt5_pnl:updPnl,mt5_trades:updPos,mt5_history:updHist,
+        const handlers={prices:updPx,mt5_pnl:updPnl,mt5_trades:d=>{cachedMT5Trades=d;mergePositions()},mt5_history:d=>{cachedMT5Hist=d;mergeHistory()},
+          mt4_trades:d=>{cachedMT4Trades=d;mergePositions()},mt4_history:d=>{cachedMT4Hist=d;mergeHistory()},mt4_account:updMT4Acct,
           indicators:d=>updInd(d),news:updNews,calendar:updCal,whale_alerts:updWh,
           fear_greed:updFG,market_overview:updOv,mt5_account:updAcct};
         if(handlers[key]){safe(()=>handlers[key](value),'rt-'+key);markUpdated()}
@@ -752,12 +755,14 @@ function safe(fn,n){try{fn()}catch(e){console.warn('['+n+']',e)}}
 
 function applyAll(d){if(!d)return;
   safe(()=>updPx(d.prices||{}),'px');safe(()=>updPnl(d.mt5_pnl||{}),'pnl');
-  safe(()=>updPos(d.mt5_trades||[]),'pos');safe(()=>updInd(d.indicators||{}),'ind');
+  safe(()=>{cachedMT5Trades=d.mt5_trades||[];cachedMT4Trades=d.mt4_trades||[];mergePositions()},'pos');
+  safe(()=>updInd(d.indicators||{}),'ind');
   safe(()=>updNews(d.news||[]),'news');safe(()=>updCal(d.calendar||[]),'cal');
   safe(()=>updWh(d.whale_alerts||[]),'wh');safe(()=>updFG(d.fear_greed||{}),'fg');
   safe(()=>updOv(d.market_overview||{}),'ov');
   safe(()=>updAcct(d.mt5_account||d.mt5_pnl||{}),'acct');
-  safe(()=>updHist(d.mt5_history||[]),'hist');
+  safe(()=>{if(d.mt4_account)updMT4Acct(d.mt4_account)},'mt4acct');
+  safe(()=>{cachedMT5Hist=d.mt5_history||[];cachedMT4Hist=d.mt4_history||[];mergeHistory()},'hist');
   setTimeout(()=>runAIAnalysis(),500);
 }
 
@@ -796,16 +801,24 @@ function updPnl(p){if(!p)return;cachedPnl=p;
   else{$('sBal').style.color='var(--white)'}}
 function setPnl(id,v){const e=$(id);e.textContent=(v>=0?'+$':'-$')+Math.abs(v).toFixed(2);e.style.color=v>0?'var(--green)':v<0?'var(--red)':'var(--txt3)'}
 
-/* ─── POSITIONS ─── */
+/* ─── MERGE & POSITIONS ─── */
+function mergePositions(){const merged=[...cachedMT5Trades,...cachedMT4Trades];updPos(merged)}
+function mergeHistory(){const merged=[...cachedMT5Hist,...cachedMT4Hist];updHist(merged)}
 function updPos(t){const c=$('posBody'),cnt=$('pCnt');
   if(!t||!t.length){c.innerHTML='<div style="text-align:center;color:var(--txt3);padding:20px;font-size:11px"><i class="bi bi-inbox"></i> No open positions</div>';
     cnt.textContent='0';$('sOpen').textContent='0';return}
   cnt.textContent=t.length;$('sOpen').textContent=t.length;
   let syms=[...new Set(t.map(x=>x.symbol))].join(', ');$('sOpenSym').textContent=syms;
-  let h='<table class="pos-table"><tr><th>Symbol</th><th>Type</th><th>Lots</th><th>Open</th><th>Current</th><th>SL</th><th>TP</th><th>P&L</th></tr>';
+  let h='<table class="pos-table"><tr><th>Platform</th><th>Symbol</th><th>Type</th><th>Lots</th><th>Open</th><th>Current</th><th>SL</th><th>TP</th><th>P&L</th></tr>';
   t.forEach(r=>{const pl=r.profit||0;const clr=pl>=0?'var(--green)':'var(--red)';
-    h+='<tr><td>'+r.symbol+'</td><td style="color:'+(r.type==='BUY'?'var(--green)':'var(--red)')+'">'+r.type+'</td><td>'+r.volume+'</td><td>'+r.price_open+'</td><td>'+r.price_current+'</td><td>'+(r.sl||'--')+'</td><td>'+(r.tp||'--')+'</td><td style="color:'+clr+';font-weight:600">'+(pl>=0?'+':'')+pl.toFixed(2)+'</td></tr>'});
+    const plat=r.platform||'MT5';const pClr=plat==='MT4'?'var(--gold)':'var(--cyan)';
+    h+='<tr><td><span style="font-size:8px;padding:1px 5px;border-radius:3px;border:1px solid '+pClr+';color:'+pClr+';font-family:var(--mono)">'+plat+'</span></td><td>'+r.symbol+'</td><td style="color:'+(r.type==='BUY'?'var(--green)':'var(--red)')+'">'+r.type+'</td><td>'+r.volume+'</td><td>'+r.price_open+'</td><td>'+r.price_current+'</td><td>'+(r.sl||'--')+'</td><td>'+(r.tp||'--')+'</td><td style="color:'+clr+';font-weight:600">'+(pl>=0?'+':'')+pl.toFixed(2)+'</td></tr>'});
   h+='</table>';c.innerHTML=h}
+
+/* ─── MT4 ACCOUNT ─── */
+function updMT4Acct(a){if(!a)return;cachedMT4Acct=a;
+  const el=$('mt4Info');if(!el)return;
+  el.innerHTML='<span style="color:var(--gold)">MT4</span> #'+(a.login||'—')+' $'+fN(a.balance||0,2);el.style.display='inline-flex'}
 
 /* ─── TRADE HISTORY ─── */
 function updHist(h){if(!h||!Array.isArray(h))return;allHist=h;renderHist();setTimeout(()=>runAIAnalysis(),300)}
@@ -827,12 +840,12 @@ function renderHist(){const body=$('histBody'),cnt=$('hCnt'),sum=$('histSummary'
   const avgW=wins>0?(items.filter(t=>(t.net_pnl||0)>0).reduce((s,t)=>s+(t.net_pnl||0),0)/wins).toFixed(2):'0';
   const avgL=losses>0?(items.filter(t=>(t.net_pnl||0)<0).reduce((s,t)=>s+(t.net_pnl||0),0)/losses).toFixed(2):'0';
   sum.innerHTML='Trades: <span>'+items.length+'</span> &nbsp;|&nbsp; P&L: <span style="color:'+(totalPnl>=0?'var(--green)':'var(--red)')+'">'+(totalPnl>=0?'+':'')+'$'+Math.abs(totalPnl).toFixed(2)+'</span> &nbsp;|&nbsp; WR: <span>'+wr+'%</span> &nbsp;|&nbsp; Avg Win: <span style="color:var(--green)">$'+avgW+'</span> &nbsp;|&nbsp; Avg Loss: <span style="color:var(--red)">$'+avgL+'</span>';
-  let html='<table class="hist-table"><tr><th>Time</th><th>Symbol</th><th>Type</th><th>Lots</th><th>Price</th><th>P&L</th><th>Comment</th></tr>';
+  let html='<table class="hist-table"><tr><th>Time</th><th>Symbol</th><th>Type</th><th>Lots</th><th>Price</th><th>P&L</th><th>Src</th></tr>';
   items.slice(0,100).forEach(r=>{
     const pnl=r.net_pnl||0;const pCls=pnl>=0?'h-win':'h-loss';const tCls=r.type==='BUY'?'h-buy':'h-sell';
     const dt=r.time?new Date(r.time).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false}):'--';
-    const sym=(r.symbol||'').replace('#','');const cmt=(r.comment||'').replace(/[\[\]]/g,'').substring(0,20);
-    html+='<tr><td>'+dt+'</td><td>'+sym+'</td><td class="'+tCls+'">'+r.type+'</td><td>'+r.volume+'</td><td>'+r.price+'</td><td class="'+pCls+'" style="font-weight:600">'+(pnl>=0?'+':'')+pnl.toFixed(2)+'</td><td style="color:var(--txt3);font-size:8px">'+cmt+'</td></tr>'});
+    const sym=(r.symbol||'').replace('#','');const plat=r.platform||'MT5';const pClr=plat==='MT4'?'var(--gold)':'var(--cyan)';
+    html+='<tr><td>'+dt+'</td><td>'+sym+'</td><td class="'+tCls+'">'+r.type+'</td><td>'+r.volume+'</td><td>'+r.price+'</td><td class="'+pCls+'" style="font-weight:600">'+(pnl>=0?'+':'')+pnl.toFixed(2)+'</td><td style="font-size:7px;color:'+pClr+'">'+plat+'</td></tr>'});
   html+='</table>';body.innerHTML=html}
 
 /* ─── INDICATORS ─── */
